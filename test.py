@@ -4,24 +4,65 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Sales Forecasting System", layout="wide")
 
+# ---------------- TITLE ----------------
 st.title("📊 Sales Forecasting & Demand Prediction System")
 st.markdown("### 🚀 Smart Insights for Business Growth")
 
-# Load dataset
-df = pd.read_csv("data/sales.csv")
+# ---------------- FILE UPLOAD ----------------
+st.sidebar.header("📁 Upload Dataset")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload your dataset",
+    type=["csv", "xlsx", "xls"]
+)
+
+# ---------------- INITIAL SCREEN ----------------
+if uploaded_file is None:
+    st.markdown("---")
+    st.info("👈 Please upload a dataset from the sidebar to begin analysis")
+    st.markdown("""
+    ### 📌 Required Dataset Format:
+    - Date  
+    - Product  
+    - Region  
+    - Sales  
+    """)
+    st.stop()
+
+# ---------------- READ FILE ----------------
+file_name = uploaded_file.name
+
+if file_name.endswith(".csv"):
+    df = pd.read_csv(uploaded_file)
+
+elif file_name.endswith(".xlsx") or file_name.endswith(".xls"):
+    df = pd.read_excel(uploaded_file)
+
+else:
+    st.error("❌ Unsupported file format")
+    st.stop()
+
+# ---------------- VALIDATION ----------------
+required_columns = ['Date', 'Product', 'Region', 'Sales']
+
+if not all(col in df.columns for col in required_columns):
+    st.error("❌ CSV/Excel must contain: Date, Product, Region, Sales")
+    st.stop()
+
+# ---------------- PREPROCESS ----------------
 df['Date'] = pd.to_datetime(df['Date'])
 df['Month'] = df['Date'].dt.month
 
-st.success("✅ Dataset loaded successfully!")
+st.success("✅ Dataset uploaded successfully!")
 
-# ---------------- SMART FILTERS ----------------
+# ---------------- FILTERS ----------------
 st.sidebar.header("🔎 Smart Filters")
 
 product_filter = st.sidebar.selectbox("Select Product", df['Product'].unique())
 
-# Show only regions available for that product
 available_regions = df[df['Product'] == product_filter]['Region'].unique()
 region_filter = st.sidebar.selectbox("Select Region", available_regions)
 
@@ -49,10 +90,26 @@ st.subheader("📊 Trend Analysis")
 
 if not filtered_df.empty and len(filtered_df) > 1:
     monthly_sales = filtered_df.groupby('Month')['Sales'].sum()
-    trend = "Increasing 📈" if monthly_sales.iloc[-1] > monthly_sales.iloc[0] else "Decreasing 📉"
+
+    if monthly_sales.std() > monthly_sales.mean() * 0.3:
+        trend = "Volatile ⚠️"
+    elif monthly_sales.iloc[-1] > monthly_sales.iloc[0]:
+        trend = "Increasing 📈"
+    else:
+        trend = "Decreasing 📉"
+
     st.info(f"Trend: {trend}")
 else:
     st.info("Not enough data to determine trend")
+
+# ---------------- ALERTS ----------------
+st.subheader("🚨 Smart Alerts")
+
+if not filtered_df.empty and len(filtered_df) > 1:
+    if monthly_sales.iloc[-1] < monthly_sales.iloc[-2] * 0.5:
+        st.error("⚠️ Sales dropped significantly!")
+    elif monthly_sales.iloc[-1] > monthly_sales.iloc[-2] * 1.5:
+        st.success("🚀 Sales spike detected!")
 
 # ---------------- INSIGHTS ----------------
 st.subheader("💡 Product Insights")
@@ -82,6 +139,16 @@ score = r2_score(y, y_pred)
 st.subheader("📏 Model Performance")
 st.success(f"R² Score: {round(score, 2)}")
 
+# ---------------- CONFIDENCE ----------------
+if score > 0.7:
+    confidence = "High ✅"
+elif score > 0.4:
+    confidence = "Medium ⚠️"
+else:
+    confidence = "Low ❌"
+
+st.info(f"Prediction Confidence: {confidence}")
+
 # ---------------- PREDICTION ----------------
 st.subheader("🔮 Predict Future Sales")
 
@@ -93,10 +160,6 @@ product = col2.selectbox("Product", df['Product'].unique())
 available_regions_pred = df[df['Product'] == product]['Region'].unique()
 region = col3.selectbox("Region", available_regions_pred)
 
-# Encode mapping
-product_map = dict(enumerate(df_model['Product']))
-region_map = dict(enumerate(df_model['Region']))
-
 product_code = df_model[df['Product'] == product]['Product'].iloc[0]
 region_code = df_model[df['Region'] == region]['Region'].iloc[0]
 
@@ -106,4 +169,3 @@ if st.button("🚀 Predict Sales"):
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
-st.markdown("✨ Hackathon Ready | Clean UI + Smart ML")
